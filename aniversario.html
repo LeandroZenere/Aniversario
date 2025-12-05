@@ -151,7 +151,7 @@
                                 return result ? JSON.parse(result.value) : null;
                             })
                         );
-                        setTrips(loadedTrips.filter(t => t !== null).sort((a, b) => new Date(b.date) - new Date(a.date)));
+                        setTrips(loadedTrips.filter(t => t !== null).sort((a, b) => new Date(a.date) - new Date(b.date)));
                     }
                 } catch (error) {
                     console.log('Iniciando con viajes vacíos:', error);
@@ -181,10 +181,13 @@
                 };
                 
                 await saveTrip(trip);
-                setTrips([trip, ...trips]);
+                const updatedTrips = [trip, ...trips].sort((a, b) => new Date(a.date) - new Date(b.date));
+                setTrips(updatedTrips);
                 setNewTrip({ title: '', date: '', location: '', description: '' });
                 setShowNewTrip(false);
-                setCurrentPage(0);
+                // Encontrar la posición del nuevo viaje para mostrarla
+                const newTripIndex = updatedTrips.findIndex(t => t.id === trip.id);
+                setCurrentPage(newTripIndex);
             };
 
             const deleteTrip = async (index) => {
@@ -253,8 +256,16 @@
                 const tripIndex = updatedTrips.findIndex(t => t.id === editingTrip.id);
                 updatedTrips[tripIndex] = editingTrip;
 
+                // Reordenar por fecha después de editar
+                const sortedTrips = updatedTrips.sort((a, b) => new Date(a.date) - new Date(b.date));
+
                 await saveTrip(editingTrip);
-                setTrips(updatedTrips);
+                setTrips(sortedTrips);
+
+                // Actualizar la página actual a la nueva posición del viaje editado
+                const newTripIndex = sortedTrips.findIndex(t => t.id === editingTrip.id);
+                setCurrentPage(newTripIndex);
+
                 setShowEditTrip(false);
                 setEditingTrip(null);
             };
