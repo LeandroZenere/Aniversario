@@ -70,59 +70,136 @@
             });
         };
 
-        // Sistema de storage local con manejo de errores mejorado
+        // Sistema de almacenamiento con IndexedDB (límite ~50MB-500MB+)
+        const initDB = () => {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('TravelJournalDB', 2);
+
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+
+                    // Crear object store si no existe
+                    if (!db.objectStoreNames.contains('trips')) {
+                        db.createObjectStore('trips', { keyPath: 'key' });
+                    }
+                };
+            });
+        };
+
+        // Sistema de storage con IndexedDB
         window.storage = {
-            data: JSON.parse(localStorage.getItem('travelJournal') || '{}'),
+            db: null,
+
+            async init() {
+                if (!this.db) {
+                    this.db = await initDB();
+
+                    // Migrar datos de localStorage si existen
+                    const oldData = localStorage.getItem('travelJournal');
+                    if (oldData) {
+                        console.log('Migrando datos de localStorage a IndexedDB...');
+                        try {
+                            const data = JSON.parse(oldData);
+                            const transaction = this.db.transaction(['trips'], 'readwrite');
+                            const store = transaction.objectStore('trips');
+
+                            for (const [key, value] of Object.entries(data)) {
+                                await store.put({ key, value });
+                            }
+
+                            await transaction.complete;
+                            console.log('✅ Migración completada. Eliminando datos antiguos de localStorage...');
+                            localStorage.removeItem('travelJournal');
+                        } catch (error) {
+                            console.error('Error en migración:', error);
+                        }
+                    }
+                }
+                return this.db;
+            },
+
             async get(key) {
-                const value = this.data[key];
-                return value ? { key, value, shared: false } : null;
+                await this.init();
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction(['trips'], 'readonly');
+                    const store = transaction.objectStore('trips');
+                    const request = store.get(key);
+
+                    request.onsuccess = () => {
+                        const result = request.result;
+                        resolve(result ? { key, value: result.value, shared: false } : null);
+                    };
+                    request.onerror = () => reject(request.error);
+                });
             },
+
             async set(key, value) {
-                try {
-                    this.data[key] = value;
-                    const dataStr = JSON.stringify(this.data);
+                await this.init();
+                return new Promise((resolve, reject) => {
+                    try {
+                        const transaction = this.db.transaction(['trips'], 'readwrite');
+                        const store = transaction.objectStore('trips');
+                        const request = store.put({ key, value });
 
-                    // Verificar tamaño (localStorage tiene límite de ~5MB)
-                    const sizeInMB = new Blob([dataStr]).size / (1024 * 1024);
-                    console.log(`Tamaño de datos: ${sizeInMB.toFixed(2)} MB`);
+                        request.onsuccess = () => {
+                            // Calcular tamaño aproximado
+                            const sizeInMB = new Blob([JSON.stringify({ key, value })]).size / (1024 * 1024);
+                            console.log(`Dato guardado: ${key}, tamaño aprox: ${sizeInMB.toFixed(2)} MB`);
 
-                    if (sizeInMB > 4.5) {
-                        alert(`⚠️ Advertencia: Los datos están ocupando ${sizeInMB.toFixed(2)} MB. El límite es ~5MB. Considera eliminar fotos antiguas o reducir la calidad.`);
-                    }
-
-                    localStorage.setItem('travelJournal', dataStr);
-
-                    // Verificar que se guardó correctamente
-                    const saved = localStorage.getItem('travelJournal');
-                    if (!saved) {
-                        throw new Error('No se pudo guardar en localStorage');
-                    }
-
-                    return { key, value, shared: false };
-                } catch (error) {
-                    console.error('Error al guardar:', error);
-                    if (error.name === 'QuotaExceededError') {
-                        alert('❌ Error: Espacio de almacenamiento lleno. Las imágenes son muy grandes. Intenta:\n1. Eliminar algunos viajes o fotos\n2. Exportar tus datos como respaldo\n3. Recargar la página');
-                    } else {
+                            resolve({ key, value, shared: false });
+                        };
+                        request.onerror = () => {
+                            console.error('Error al guardar:', request.error);
+                            alert('❌ Error al guardar los datos. Puede que el navegador esté lleno.');
+                            reject(request.error);
+                        };
+                    } catch (error) {
+                        console.error('Error al guardar:', error);
                         alert('❌ Error al guardar los datos: ' + error.message);
+                        reject(error);
                     }
-                    throw error;
-                }
+                });
             },
+
             async delete(key) {
-                try {
-                    delete this.data[key];
-                    localStorage.setItem('travelJournal', JSON.stringify(this.data));
-                    return { key, deleted: true, shared: false };
-                } catch (error) {
-                    console.error('Error al eliminar:', error);
-                    alert('❌ Error al eliminar datos');
-                    throw error;
-                }
+                await this.init();
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction(['trips'], 'readwrite');
+                    const store = transaction.objectStore('trips');
+                    const request = store.delete(key);
+
+                    request.onsuccess = () => resolve({ key, deleted: true, shared: false });
+                    request.onerror = () => reject(request.error);
+                });
             },
+
             async list(prefix) {
-                const keys = Object.keys(this.data).filter(k => k.startsWith(prefix || ''));
-                return { keys, prefix, shared: false };
+                await this.init();
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction(['trips'], 'readonly');
+                    const store = transaction.objectStore('trips');
+                    const request = store.getAllKeys();
+
+                    request.onsuccess = () => {
+                        const keys = request.result.filter(k => k.startsWith(prefix || ''));
+                        resolve({ keys, prefix, shared: false });
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            },
+
+            async estimateSpace() {
+                if ('storage' in navigator && 'estimate' in navigator.storage) {
+                    const estimate = await navigator.storage.estimate();
+                    const usedMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+                    const quotaMB = (estimate.quota / (1024 * 1024)).toFixed(2);
+                    console.log(`Almacenamiento usado: ${usedMB} MB de ${quotaMB} MB disponibles`);
+                    return { used: usedMB, quota: quotaMB, percentage: (estimate.usage / estimate.quota * 100).toFixed(1) };
+                }
+                return null;
             }
         };
 
@@ -358,14 +435,31 @@
                 setEditingPhoto(null);
             };
 
-            const exportData = () => {
+            const exportData = async () => {
                 try {
-                    const dataStr = localStorage.getItem('travelJournal');
-                    if (!dataStr) {
+                    // Obtener todos los datos de IndexedDB
+                    await window.storage.init();
+                    const db = window.storage.db;
+                    const transaction = db.transaction(['trips'], 'readonly');
+                    const store = transaction.objectStore('trips');
+                    const allData = await new Promise((resolve, reject) => {
+                        const request = store.getAll();
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+
+                    if (!allData || allData.length === 0) {
                         alert('No hay datos para exportar');
                         return;
                     }
 
+                    // Convertir a formato compatible con localStorage
+                    const exportObj = {};
+                    allData.forEach(item => {
+                        exportObj[item.key] = item.value;
+                    });
+
+                    const dataStr = JSON.stringify(exportObj, null, 2);
                     const blob = new Blob([dataStr], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -373,10 +467,13 @@
                     a.download = `viajes-respaldo-${new Date().toISOString().split('T')[0]}.json`;
                     a.click();
                     URL.revokeObjectURL(url);
-                    alert('✅ Datos exportados exitosamente. Guarda este archivo en un lugar seguro.');
+
+                    // Mostrar estadísticas
+                    const space = await window.storage.estimateSpace();
+                    alert(`✅ Datos exportados exitosamente. Guarda este archivo en un lugar seguro.\n\n📊 Espacio usado: ${space.used} MB de ${space.quota} MB (${space.percentage}%)`);
                 } catch (error) {
                     console.error('Error al exportar:', error);
-                    alert('❌ Error al exportar datos');
+                    alert('❌ Error al exportar datos: ' + error.message);
                 }
             };
 
@@ -396,14 +493,37 @@
                             return;
                         }
 
-                        localStorage.setItem('travelJournal', text);
-                        window.storage.data = data;
+                        // Importar a IndexedDB
+                        await window.storage.init();
+                        const db = window.storage.db;
+
+                        // Limpiar datos existentes
+                        const clearTransaction = db.transaction(['trips'], 'readwrite');
+                        const clearStore = clearTransaction.objectStore('trips');
+                        await new Promise((resolve, reject) => {
+                            const request = clearStore.clear();
+                            request.onsuccess = () => resolve();
+                            request.onerror = () => reject(request.error);
+                        });
+
+                        // Importar nuevos datos
+                        const transaction = db.transaction(['trips'], 'readwrite');
+                        const store = transaction.objectStore('trips');
+
+                        for (const [key, value] of Object.entries(data)) {
+                            await new Promise((resolve, reject) => {
+                                const request = store.put({ key, value });
+                                request.onsuccess = () => resolve();
+                                request.onerror = () => reject(request.error);
+                            });
+                        }
+
                         await loadTrips();
                         alert('✅ Datos importados exitosamente. Recarga la página para ver los cambios.');
                         window.location.reload();
                     } catch (error) {
                         console.error('Error al importar:', error);
-                        alert('❌ Error al importar datos. Verifica que el archivo sea válido.');
+                        alert('❌ Error al importar datos. Verifica que el archivo sea válido: ' + error.message);
                     }
                 };
                 input.click();
