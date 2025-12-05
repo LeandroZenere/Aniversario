@@ -115,6 +115,12 @@
             </svg>
         );
 
+        const Edit2 = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+            </svg>
+        );
+
         function TravelJournal() {
             const [trips, setTrips] = useState([]);
             const [currentPage, setCurrentPage] = useState(0);
@@ -124,6 +130,10 @@
             const [newTrip, setNewTrip] = useState({ title: '', date: '', location: '', description: '' });
             const [newPhoto, setNewPhoto] = useState({ file: null, url: '', caption: '' });
             const [enlargedPhoto, setEnlargedPhoto] = useState(null);
+            const [showEditTrip, setShowEditTrip] = useState(false);
+            const [editingTrip, setEditingTrip] = useState(null);
+            const [editingPhoto, setEditingPhoto] = useState(null);
+            const [showEditPhoto, setShowEditPhoto] = useState(false);
 
             useEffect(() => {
                 console.log('Componente montado, cargando viajes...');
@@ -226,6 +236,43 @@
                 updatedTrips[tripIndex].photos = updatedTrips[tripIndex].photos.filter(p => p.id !== photoId);
                 await saveTrip(updatedTrips[tripIndex]);
                 setTrips(updatedTrips);
+            };
+
+            const openEditTrip = (tripIndex) => {
+                setEditingTrip({...trips[tripIndex]});
+                setShowEditTrip(true);
+            };
+
+            const saveEditTrip = async () => {
+                if (!editingTrip.title || !editingTrip.date) {
+                    alert('Por favor completa al menos el título y la fecha');
+                    return;
+                }
+
+                const updatedTrips = [...trips];
+                const tripIndex = updatedTrips.findIndex(t => t.id === editingTrip.id);
+                updatedTrips[tripIndex] = editingTrip;
+
+                await saveTrip(editingTrip);
+                setTrips(updatedTrips);
+                setShowEditTrip(false);
+                setEditingTrip(null);
+            };
+
+            const openEditPhoto = (photo, tripIndex) => {
+                setEditingPhoto({...photo, tripIndex});
+                setShowEditPhoto(true);
+            };
+
+            const saveEditPhoto = async () => {
+                const updatedTrips = [...trips];
+                const photoIndex = updatedTrips[editingPhoto.tripIndex].photos.findIndex(p => p.id === editingPhoto.id);
+                updatedTrips[editingPhoto.tripIndex].photos[photoIndex].caption = editingPhoto.caption;
+
+                await saveTrip(updatedTrips[editingPhoto.tripIndex]);
+                setTrips(updatedTrips);
+                setShowEditPhoto(false);
+                setEditingPhoto(null);
             };
 
             const nextPage = () => {
@@ -367,6 +414,87 @@
                             </div>
                         )}
 
+                        {showEditTrip && editingTrip && (
+                            <div style={{position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 50}}>
+                                <div style={{backgroundColor: 'white', borderRadius: '1rem', padding: '1.5rem', maxWidth: '28rem', width: '100%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'}}>
+                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                                        <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#1f2937', margin: 0}}>Editar Viaje</h2>
+                                        <button onClick={() => {setShowEditTrip(false); setEditingTrip(null);}} style={{color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem'}}>
+                                            <X size={24} />
+                                        </button>
+                                    </div>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                                        <input
+                                            type="text"
+                                            placeholder="Título del viaje *"
+                                            value={editingTrip.title}
+                                            onChange={(e) => setEditingTrip({...editingTrip, title: e.target.value})}
+                                            style={{width: '100%', padding: '0.5rem 1rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box'}}
+                                        />
+                                        <input
+                                            type="date"
+                                            value={editingTrip.date}
+                                            onChange={(e) => setEditingTrip({...editingTrip, date: e.target.value})}
+                                            style={{width: '100%', padding: '0.5rem 1rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box'}}
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Lugar"
+                                            value={editingTrip.location}
+                                            onChange={(e) => setEditingTrip({...editingTrip, location: e.target.value})}
+                                            style={{width: '100%', padding: '0.5rem 1rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box'}}
+                                        />
+                                        <textarea
+                                            placeholder="Descripción del viaje"
+                                            value={editingTrip.description}
+                                            onChange={(e) => setEditingTrip({...editingTrip, description: e.target.value})}
+                                            rows="3"
+                                            style={{width: '100%', padding: '0.5rem 1rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box', resize: 'vertical'}}
+                                        />
+                                        <button
+                                            onClick={saveEditTrip}
+                                            style={{width: '100%', background: 'linear-gradient(to right, #ec4899, #a855f7)', color: 'white', padding: '0.75rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: '600'}}
+                                        >
+                                            Guardar Cambios
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {showEditPhoto && editingPhoto && (
+                            <div style={{position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 50}}>
+                                <div style={{backgroundColor: 'white', borderRadius: '1rem', padding: '1.5rem', maxWidth: '28rem', width: '100%', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'}}>
+                                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                                        <h2 style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#1f2937', margin: 0}}>Editar Nota</h2>
+                                        <button onClick={() => {setShowEditPhoto(false); setEditingPhoto(null);}} style={{color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem'}}>
+                                            <X size={24} />
+                                        </button>
+                                    </div>
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                                        <img
+                                            src={editingPhoto.url}
+                                            alt="Vista previa"
+                                            style={{width: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '0.5rem', border: '2px solid #e5e7eb'}}
+                                        />
+                                        <textarea
+                                            placeholder="Comentario sobre la foto"
+                                            value={editingPhoto.caption || ''}
+                                            onChange={(e) => setEditingPhoto({...editingPhoto, caption: e.target.value})}
+                                            rows="3"
+                                            style={{width: '100%', padding: '0.5rem 1rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box', resize: 'vertical'}}
+                                        />
+                                        <button
+                                            onClick={saveEditPhoto}
+                                            style={{width: '100%', background: 'linear-gradient(to right, #ec4899, #a855f7)', color: 'white', padding: '0.75rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer', fontSize: '1rem', fontWeight: '600'}}
+                                        >
+                                            Guardar Nota
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {enlargedPhoto && (
                             <div
                                 style={{position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 100}}
@@ -411,13 +539,22 @@
                                                 {trips[currentPage].location && <span>📍 {trips[currentPage].location}</span>}
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => deleteTrip(currentPage)}
-                                            style={{color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem'}}
-                                            title="Eliminar viaje"
-                                        >
-                                            <Trash2 size={20} />
-                                        </button>
+                                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                                            <button
+                                                onClick={() => openEditTrip(currentPage)}
+                                                style={{color: '#8b5cf6', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem'}}
+                                                title="Editar viaje"
+                                            >
+                                                <Edit2 size={20} />
+                                            </button>
+                                            <button
+                                                onClick={() => deleteTrip(currentPage)}
+                                                style={{color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem'}}
+                                                title="Eliminar viaje"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {trips[currentPage].description && (
@@ -440,13 +577,22 @@
                                                 <div style={{width: '100%', height: '12rem', backgroundColor: '#f3f4f6', borderRadius: '0.5rem', display: 'none', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '0.875rem'}}>
                                                     Imagen no disponible
                                                 </div>
-                                                <button
-                                                    onClick={() => deletePhoto(currentPage, photo.id)}
-                                                    className="delete-photo-btn"
-                                                    style={{position: 'absolute', top: '0.5rem', right: '0.5rem', backgroundColor: '#ef4444', color: 'white', padding: '0.5rem', borderRadius: '9999px', opacity: 0, transition: 'opacity 0.3s', border: 'none', cursor: 'pointer'}}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                <div className="photo-actions" style={{position: 'absolute', top: '0.5rem', right: '0.5rem', display: 'flex', gap: '0.5rem', opacity: 0, transition: 'opacity 0.3s'}}>
+                                                    <button
+                                                        onClick={(e) => {e.stopPropagation(); openEditPhoto(photo, currentPage);}}
+                                                        style={{backgroundColor: '#8b5cf6', color: 'white', padding: '0.5rem', borderRadius: '9999px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                                                        title="Editar nota"
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {e.stopPropagation(); deletePhoto(currentPage, photo.id);}}
+                                                        style={{backgroundColor: '#ef4444', color: 'white', padding: '0.5rem', borderRadius: '9999px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'}}
+                                                        title="Eliminar foto"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
                                                 {photo.caption && (
                                                     <div style={{marginTop: '0.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.25rem', fontSize: '0.875rem', color: '#4b5563'}}>
                                                         <MessageCircle size={16} style={{flexShrink: 0, marginTop: '0.125rem'}} />
@@ -518,7 +664,7 @@
                         )}
                     </div>
                     <style>{`
-                        .photo-container:hover .delete-photo-btn {
+                        .photo-container:hover .photo-actions {
                             opacity: 1;
                         }
                     `}</style>
