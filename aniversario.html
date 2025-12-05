@@ -267,6 +267,8 @@
         );
 
         function TravelJournal() {
+            const [showLetter, setShowLetter] = useState(true);
+            const [letterOpened, setLetterOpened] = useState(false);
             const [trips, setTrips] = useState([]);
             const [currentPage, setCurrentPage] = useState(0);
             const [showNewTrip, setShowNewTrip] = useState(false);
@@ -279,6 +281,16 @@
             const [editingTrip, setEditingTrip] = useState(null);
             const [editingPhoto, setEditingPhoto] = useState(null);
             const [showEditPhoto, setShowEditPhoto] = useState(false);
+
+            const openLetter = () => {
+                setLetterOpened(true);
+            };
+
+            const revealApp = () => {
+                setTimeout(() => {
+                    setShowLetter(false);
+                }, 500);
+            };
 
             useEffect(() => {
                 console.log('Componente montado, cargando viajes...');
@@ -538,6 +550,84 @@
             };
 
             return (
+                <>
+                {showLetter ? (
+                    <div style={{minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem'}}>
+                        <div style={{maxWidth: '600px', width: '100%'}}>
+                            <div
+                                className={letterOpened ? 'letter-container opened' : 'letter-container'}
+                                style={{position: 'relative', perspective: '1000px'}}
+                            >
+                                {!letterOpened && (
+                                    <div
+                                        className="envelope"
+                                        onClick={openLetter}
+                                        style={{cursor: 'pointer', position: 'relative', width: '100%', paddingTop: '66.67%', transformStyle: 'preserve-3d'}}
+                                    >
+                                        <div style={{position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                                            <div style={{textAlign: 'center'}}>
+                                                <Heart size={64} className="text-red-500 fill-red-500" style={{marginBottom: '1rem', animation: 'pulse 2s infinite'}} />
+                                                <p style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#db2777', marginBottom: '0.5rem'}}>Para ti, mi amor</p>
+                                                <p style={{fontSize: '0.875rem', color: '#6b7280'}}>Toca para abrir ❤️</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {letterOpened && (
+                                    <div className="letter-content" style={{animation: 'fadeInScale 0.8s ease-out', backgroundColor: '#fff', borderRadius: '12px', padding: '3rem 2rem', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', maxHeight: '80vh', overflowY: 'auto'}}>
+                                        <div style={{fontFamily: "'Courier New', monospace", color: '#1f2937', lineHeight: '1.8'}}>
+                                            <p style={{textAlign: 'right', marginBottom: '2rem', color: '#6b7280'}}>07-12-2025</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Hola amorcito ... ☺️</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Hoy cumplimos nuestro segundo aniversario y, sinceramente, sos la mejor persona que Dios me pudo haber hecho elegir.</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Al lado tuyo todo es aprendizaje, risas y amor. Me enseñaste a ser más paciente, a ser mejor persona, a ser mejor compañero.<br />
+                                            Con vos descubrí lo que es amar y también lo que es sentirse amado; esto último es de las cosas más valiosas que pudiste darme y enseñarme, y por la cual voy a estar siempre agradecido con vos 🫶🏽</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Tu cariño, tu apoyo incondicional, tu sentido del humor, tus locuras, tu ternura, tu risa, todo lo que conforma tu forma de ser hace que seas esa personita especial que siempre voy a amar y por la cual voy a hacer todo lo posible por estar a tu lado.</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Realmente las palabras limitan lo hermoso que haces ver mi mundo, estar un rato con vos ya es suficiente para sentir paz y volver a la tranquilidad que necesito.</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Me gustaría poder parar el tiempo cuando estamos juntos, pero como eso no es posible agradezco que lo hayamos vivido en pareja.<br />
+                                            Por eso, y rememorando lo vivido hasta ahora, armé algo para que podamos volver a ver cada uno de nuestros momentos más importantes cuando queramos.</p>
+
+                                            <p style={{marginBottom: '1rem'}}>Lo mejor está por venir y lo vamos a construir juntos ❤</p>
+
+                                            <p style={{marginBottom: '1rem', fontWeight: 'bold'}}>2 años con el amor de mi vida, y deseando que sean muchísimos más.</p>
+
+                                            <p style={{marginBottom: '2rem'}}>Te amo hermosa, sos la persona más importante de mi vida ❤️‍🩹</p>
+
+                                            <div style={{textAlign: 'center', marginTop: '2rem'}}>
+                                                <button
+                                                    onClick={revealApp}
+                                                    style={{
+                                                        background: 'linear-gradient(to right, #ec4899, #a855f7)',
+                                                        color: 'white',
+                                                        padding: '1rem 2.5rem',
+                                                        borderRadius: '9999px',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        fontSize: '1.125rem',
+                                                        fontWeight: '600',
+                                                        boxShadow: '0 4px 15px rgba(236,72,153,0.4)',
+                                                        transition: 'all 0.3s',
+                                                        fontFamily: 'sans-serif'
+                                                    }}
+                                                    onMouseOver={(e) => {e.target.style.transform = 'scale(1.05)'; e.target.style.boxShadow = '0 6px 20px rgba(236,72,153,0.6)';}}
+                                                    onMouseOut={(e) => {e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 15px rgba(236,72,153,0.4)';}}
+                                                >
+                                                    Ver nuestros recuerdos ❤️
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
                 <div style={{minHeight: '100vh', background: 'linear-gradient(to bottom right, #fce7f3, #f3e8ff, #dbeafe)', padding: '1rem'}}>
                     <div style={{maxWidth: '64rem', margin: '0 auto'}}>
                         <div style={{textAlign: 'center', marginBottom: '2rem', paddingTop: '1.5rem'}}>
@@ -945,6 +1035,52 @@
                         }
                     `}</style>
                 </div>
+                )}
+                <style>{`
+                    @keyframes fadeInScale {
+                        from {
+                            opacity: 0;
+                            transform: scale(0.9);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: scale(1);
+                        }
+                    }
+
+                    @keyframes pulse {
+                        0%, 100% {
+                            transform: scale(1);
+                        }
+                        50% {
+                            transform: scale(1.1);
+                        }
+                    }
+
+                    .letter-content {
+                        scrollbar-width: thin;
+                        scrollbar-color: #db2777 #f3f4f6;
+                    }
+
+                    .letter-content::-webkit-scrollbar {
+                        width: 8px;
+                    }
+
+                    .letter-content::-webkit-scrollbar-track {
+                        background: #f3f4f6;
+                        border-radius: 10px;
+                    }
+
+                    .letter-content::-webkit-scrollbar-thumb {
+                        background: #db2777;
+                        border-radius: 10px;
+                    }
+
+                    .letter-content::-webkit-scrollbar-thumb:hover {
+                        background: #be185d;
+                    }
+                `}</style>
+                </>
             );
         }
 
