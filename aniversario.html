@@ -34,8 +34,43 @@
         const { useState, useEffect } = React;
         
         console.log('Script iniciando...');
-        
-        // Sistema de storage local
+
+        // Función para comprimir imágenes
+        const compressImage = (file, maxWidth = 1200, quality = 0.8) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        // Redimensionar si es necesario
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Convertir a base64 con compresión
+                        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                        resolve(compressedBase64);
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        };
+
+        // Sistema de storage local con manejo de errores mejorado
         window.storage = {
             data: JSON.parse(localStorage.getItem('travelJournal') || '{}'),
             async get(key) {
@@ -43,14 +78,47 @@
                 return value ? { key, value, shared: false } : null;
             },
             async set(key, value) {
-                this.data[key] = value;
-                localStorage.setItem('travelJournal', JSON.stringify(this.data));
-                return { key, value, shared: false };
+                try {
+                    this.data[key] = value;
+                    const dataStr = JSON.stringify(this.data);
+
+                    // Verificar tamaño (localStorage tiene límite de ~5MB)
+                    const sizeInMB = new Blob([dataStr]).size / (1024 * 1024);
+                    console.log(`Tamaño de datos: ${sizeInMB.toFixed(2)} MB`);
+
+                    if (sizeInMB > 4.5) {
+                        alert(`⚠️ Advertencia: Los datos están ocupando ${sizeInMB.toFixed(2)} MB. El límite es ~5MB. Considera eliminar fotos antiguas o reducir la calidad.`);
+                    }
+
+                    localStorage.setItem('travelJournal', dataStr);
+
+                    // Verificar que se guardó correctamente
+                    const saved = localStorage.getItem('travelJournal');
+                    if (!saved) {
+                        throw new Error('No se pudo guardar en localStorage');
+                    }
+
+                    return { key, value, shared: false };
+                } catch (error) {
+                    console.error('Error al guardar:', error);
+                    if (error.name === 'QuotaExceededError') {
+                        alert('❌ Error: Espacio de almacenamiento lleno. Las imágenes son muy grandes. Intenta:\n1. Eliminar algunos viajes o fotos\n2. Exportar tus datos como respaldo\n3. Recargar la página');
+                    } else {
+                        alert('❌ Error al guardar los datos: ' + error.message);
+                    }
+                    throw error;
+                }
             },
             async delete(key) {
-                delete this.data[key];
-                localStorage.setItem('travelJournal', JSON.stringify(this.data));
-                return { key, deleted: true, shared: false };
+                try {
+                    delete this.data[key];
+                    localStorage.setItem('travelJournal', JSON.stringify(this.data));
+                    return { key, deleted: true, shared: false };
+                } catch (error) {
+                    console.error('Error al eliminar:', error);
+                    alert('❌ Error al eliminar datos');
+                    throw error;
+                }
             },
             async list(prefix) {
                 const keys = Object.keys(this.data).filter(k => k.startsWith(prefix || ''));
@@ -214,13 +282,14 @@
                     return;
                 }
 
-                // Convertir el archivo a Base64
-                const reader = new FileReader();
-                reader.onloadend = async () => {
+                try {
+                    // Comprimir la imagen antes de guardar
+                    const compressedBase64 = await compressImage(newPhoto.file);
+
                     const updatedTrips = [...trips];
                     const photo = {
                         id: Date.now().toString(),
-                        url: reader.result, // Base64 string
+                        url: compressedBase64, // Base64 comprimido
                         caption: newPhoto.caption
                     };
 
@@ -230,8 +299,11 @@
                     setNewPhoto({ file: null, url: '', caption: '' });
                     setShowAddPhoto(false);
                     setSelectedTripIndex(null);
-                };
-                reader.readAsDataURL(newPhoto.file);
+                    alert('✅ Foto agregada exitosamente');
+                } catch (error) {
+                    console.error('Error al agregar foto:', error);
+                    alert('❌ Error al agregar la foto. Por favor intenta de nuevo.');
+                }
             };
 
             const deletePhoto = async (tripIndex, photoId) => {
@@ -286,6 +358,57 @@
                 setEditingPhoto(null);
             };
 
+            const exportData = () => {
+                try {
+                    const dataStr = localStorage.getItem('travelJournal');
+                    if (!dataStr) {
+                        alert('No hay datos para exportar');
+                        return;
+                    }
+
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `viajes-respaldo-${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    alert('✅ Datos exportados exitosamente. Guarda este archivo en un lugar seguro.');
+                } catch (error) {
+                    console.error('Error al exportar:', error);
+                    alert('❌ Error al exportar datos');
+                }
+            };
+
+            const importData = () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = async (e) => {
+                    try {
+                        const file = e.target.files[0];
+                        if (!file) return;
+
+                        const text = await file.text();
+                        const data = JSON.parse(text);
+
+                        if (!window.confirm('⚠️ Esto sobrescribirá todos tus datos actuales. ¿Continuar?')) {
+                            return;
+                        }
+
+                        localStorage.setItem('travelJournal', text);
+                        window.storage.data = data;
+                        await loadTrips();
+                        alert('✅ Datos importados exitosamente. Recarga la página para ver los cambios.');
+                        window.location.reload();
+                    } catch (error) {
+                        console.error('Error al importar:', error);
+                        alert('❌ Error al importar datos. Verifica que el archivo sea válido.');
+                    }
+                };
+                input.click();
+            };
+
             const nextPage = () => {
                 if (currentPage < trips.length - 1) setCurrentPage(currentPage + 1);
             };
@@ -306,6 +429,26 @@
                                 <Heart size={32} className="text-red-500 fill-red-500 animate-pulse" />
                             </div>
                             <p style={{color: '#4b5563', fontSize: '1.125rem'}}>2 años de amor y recuerdos 💑</p>
+                            <div style={{display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem'}}>
+                                <button
+                                    onClick={exportData}
+                                    style={{color: '#6b7280', fontSize: '0.875rem', background: 'none', border: '1px solid #d1d5db', borderRadius: '0.5rem', padding: '0.5rem 1rem', cursor: 'pointer', transition: 'all 0.2s'}}
+                                    onMouseOver={(e) => {e.target.style.backgroundColor = '#f3f4f6'; e.target.style.borderColor = '#9ca3af';}}
+                                    onMouseOut={(e) => {e.target.style.backgroundColor = 'transparent'; e.target.style.borderColor = '#d1d5db';}}
+                                    title="Exportar todos los datos como respaldo"
+                                >
+                                    📥 Exportar Respaldo
+                                </button>
+                                <button
+                                    onClick={importData}
+                                    style={{color: '#6b7280', fontSize: '0.875rem', background: 'none', border: '1px solid #d1d5db', borderRadius: '0.5rem', padding: '0.5rem 1rem', cursor: 'pointer', transition: 'all 0.2s'}}
+                                    onMouseOver={(e) => {e.target.style.backgroundColor = '#f3f4f6'; e.target.style.borderColor = '#9ca3af';}}
+                                    onMouseOut={(e) => {e.target.style.backgroundColor = 'transparent'; e.target.style.borderColor = '#d1d5db';}}
+                                    title="Importar datos desde un archivo de respaldo"
+                                >
+                                    📤 Importar Respaldo
+                                </button>
+                            </div>
                         </div>
 
                         <div style={{display: 'flex', justifyContent: 'center', marginBottom: '1.5rem'}}>
@@ -385,14 +528,16 @@
                                             <input
                                                 type="file"
                                                 accept="image/*"
-                                                onChange={(e) => {
+                                                onChange={async (e) => {
                                                     const file = e.target.files[0];
                                                     if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onloadend = () => {
-                                                            setNewPhoto({...newPhoto, file: file, url: reader.result});
-                                                        };
-                                                        reader.readAsDataURL(file);
+                                                        try {
+                                                            const compressed = await compressImage(file);
+                                                            setNewPhoto({...newPhoto, file: file, url: compressed});
+                                                        } catch (error) {
+                                                            console.error('Error al procesar imagen:', error);
+                                                            alert('❌ Error al procesar la imagen');
+                                                        }
                                                     }
                                                 }}
                                                 style={{width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', fontSize: '1rem', boxSizing: 'border-box'}}
